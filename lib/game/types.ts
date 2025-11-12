@@ -7,16 +7,9 @@ export type Player = {
   hasFinishedRound: boolean;
 };
 
-export type NewPlayer = {
-  id: string;
-  name: string;
-};
+export type NewPlayer = Pick<Player, 'id' | 'name'>
 
-export type PlayerUpdateBody = {
-  accuracy: number;
-  liveProgress: string;
-  hasFinishedRound: boolean;
-};
+export type PlayerUpdateBody = Omit<Player, 'id' | 'name' | 'lastSeen'>
 
 export type GameState = {
   roundActive: boolean;
