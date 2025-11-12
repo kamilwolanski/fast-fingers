@@ -11,9 +11,9 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@radix-ui/react-label";
 import { Button } from "@/components/ui/button";
-// import TableResults from "@/components/TableResults";
+import TableResults from "@/components/TableResults";
 import { GameState, Player } from "@/lib/game/types";
-// import GameBoard from "@/components/GameBoard";
+import GameBoard from "@/components/GameBoard";
 import { formatMsToMMSS } from "@/lib/utils";
 import { addPlayerToServer } from "@/lib/api/gameClient";
 
