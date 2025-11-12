@@ -1,64 +1,160 @@
-import Image from "next/image";
+"use client";
+
+import { useEffect, useState } from "react";
+import { v4 as uuidv4 } from "uuid";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@radix-ui/react-label";
+import { Button } from "@/components/ui/button";
+// import TableResults from "@/components/TableResults";
+import { GameState, Player } from "@/lib/game/types";
+// import GameBoard from "@/components/GameBoard";
+import { formatMsToMMSS } from "@/lib/utils";
+import { addPlayerToServer } from "@/lib/api/gameClient";
 
 export default function Home() {
+  const hasPlayer = localStorage.getItem("player");
+  const [gameState, setGameState] = useState<GameState>();
+  const [rem, setRem] = useState(0);
+
+  const [dialogOpen, setDialogOpen] = useState(() => {
+    return !hasPlayer;
+  });
+
+  useEffect(() => {
+    const getGameState = async () => {
+      try {
+        const gameResponse = await fetch("/api/game");
+        const gameStateData: GameState = await gameResponse.json();
+        setGameState(gameStateData);
+        if (gameStateData.nextRoundStartAt) {
+          if (gameStateData.nextRoundStartAt) {
+            setRem(Math.max(0, gameStateData.nextRoundStartAt - Date.now()));
+          }
+        }
+      } catch (err) {
+        console.warn(err);
+      }
+    };
+    
+    getGameState();
+    const intervalId = setInterval(() => {
+      getGameState();
+    }, 800);
+
+    return () => clearInterval(intervalId);
+  }, []);
+
+  useEffect(() => {
+    if (hasPlayer) {
+      const player: Player = JSON.parse(hasPlayer);
+      const isPlayerInTheServer = Boolean(
+        gameState?.activePlayers.find((p) => p.id === player.id)
+      );
+      if (!isPlayerInTheServer) {
+        addPlayerToServer(player);
+      }
+    }
+  }, [gameState, hasPlayer]);
+
+  useEffect(() => {
+    if (!gameState?.nextRoundStartAt) return;
+    const tick = () =>
+      setRem(Math.max(0, gameState.nextRoundStartAt! - Date.now()));
+    tick();
+    const id = setInterval(tick, 250);
+    return () => clearInterval(id);
+  }, [gameState?.nextRoundStartAt]);
+
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const formData = new FormData(e.currentTarget);
+    const userName = formData.get("name");
+    const newPlayer = {
+      id: uuidv4(),
+      name: String(userName),
+    };
+    localStorage.setItem("player", JSON.stringify(newPlayer));
+    addPlayerToServer(newPlayer);
+    setDialogOpen(false);
+  };
+
   return (
     <div className="flex min-h-screen items-center justify-center bg-zinc-50 font-sans dark:bg-black">
       <main className="flex min-h-screen w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
+        {rem > 0 && (
+          <div
+            className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 px-4"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Round starting soon"
           >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
+            <div className="bg-white rounded-xl shadow-2xl p-6 max-w-md w-full relative">
+              {gameState?.lastGameResults &&
+                gameState.lastGameResults.length > 0 && (
+                  <h3 className="text-lg font-semibold mb-3">
+                    Previous round results
+                  </h3>
+                )}
+
+              <div className="text-sm text-gray-700">
+                {gameState?.lastGameResults &&
+                  gameState.lastGameResults.length > 0 && (
+                    <div className="mb-3">
+                      <TableResults
+                        activePlayers={gameState.lastGameResults}
+                        showLiveProgress={false}
+                      />
+                    </div>
+                  )}
+
+                <p className="font-medium">
+                  Next round starts in:{" "}
+                  <span className="font-mono">{formatMsToMMSS(rem)}</span>
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {gameState?.roundActive ? (
+          <GameBoard gameState={gameState} />
+        ) : (
+          <p className="text-4xl text-center w-full">LOADING....</p>
+        )}
+        <Dialog open={dialogOpen}>
+          <DialogContent className="sm:max-w-[425px]">
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                handleSubmit(e);
+              }}
+              className="grid gap-4"
+            >
+              <DialogHeader>
+                <DialogTitle>Enter your display name</DialogTitle>
+              </DialogHeader>
+
+              <div className="grid gap-3">
+                <Label htmlFor="name-1">Display name</Label>
+                <Input
+                  id="name-1"
+                  name="name"
+                  defaultValue="Pedro Duarte"
+                  placeholder="e.g. TypingPro123"
+                  aria-label="Player display name"
+                />
+              </div>
+
+              <Button type="submit">Join game</Button>
+            </form>
+          </DialogContent>
+        </Dialog>
       </main>
     </div>
   );
